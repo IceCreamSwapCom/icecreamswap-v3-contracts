@@ -23,6 +23,9 @@ contract PancakeV3Factory is IPancakeV3Factory {
 
     address public lmPoolDeployer;
 
+    uint32 public defaultProtocolFee;
+    mapping(uint24 => uint32) public defaultProtocolFeeForFee;
+
     modifier onlyOwner() {
         require(msg.sender == owner, "Not owner");
         _;
@@ -38,22 +41,24 @@ contract PancakeV3Factory is IPancakeV3Factory {
         owner = msg.sender;
         emit OwnerChanged(address(0), msg.sender);
 
-        feeAmountTickSpacing[100] = 1;
-        feeAmountTickSpacingExtraInfo[100] = TickSpacingExtraInfo({whitelistRequested: false, enabled: true});
-        emit FeeAmountEnabled(100, 1);
-        emit FeeAmountExtraInfoUpdated(100, false, true);
-        feeAmountTickSpacing[500] = 10;
-        feeAmountTickSpacingExtraInfo[500] = TickSpacingExtraInfo({whitelistRequested: false, enabled: true});
-        emit FeeAmountEnabled(500, 10);
+        defaultProtocolFee = 5000;
+
+        feeAmountTickSpacing[1000] = 20;
+        feeAmountTickSpacingExtraInfo[1000] = TickSpacingExtraInfo({whitelistRequested: false, enabled: true});
+        emit FeeAmountEnabled(1000, 20);
         emit FeeAmountExtraInfoUpdated(500, false, true);
-        feeAmountTickSpacing[2500] = 50;
-        feeAmountTickSpacingExtraInfo[2500] = TickSpacingExtraInfo({whitelistRequested: false, enabled: true});
-        emit FeeAmountEnabled(2500, 50);
+        feeAmountTickSpacing[3000] = 60;
+        feeAmountTickSpacingExtraInfo[3000] = TickSpacingExtraInfo({whitelistRequested: false, enabled: true});
+        emit FeeAmountEnabled(3000, 60);
         emit FeeAmountExtraInfoUpdated(2500, false, true);
         feeAmountTickSpacing[10000] = 200;
         feeAmountTickSpacingExtraInfo[10000] = TickSpacingExtraInfo({whitelistRequested: false, enabled: true});
         emit FeeAmountEnabled(10000, 200);
         emit FeeAmountExtraInfoUpdated(10000, false, true);
+        feeAmountTickSpacing[50000] = 1000;
+        feeAmountTickSpacingExtraInfo[50000] = TickSpacingExtraInfo({whitelistRequested: false, enabled: true});
+        emit FeeAmountEnabled(50000, 1000);
+        emit FeeAmountExtraInfoUpdated(50000, false, true);
     }
 
     /// @inheritdoc IPancakeV3Factory
@@ -126,6 +131,23 @@ contract PancakeV3Factory is IPancakeV3Factory {
     function setLmPoolDeployer(address _lmPoolDeployer) external override onlyOwner {
         lmPoolDeployer = _lmPoolDeployer;
         emit SetLmPoolDeployer(_lmPoolDeployer);
+    }
+
+    function getDefaultProtocolFee(uint24 fee) external view override returns (uint32 protocolFee) {
+        protocolFee = defaultProtocolFeeForFee[fee];
+        if (protocolFee == 0) {
+            protocolFee = defaultProtocolFee;
+        }
+    }
+
+    function setDefaultProtocolFee(uint32 protocolFee) external onlyOwner {
+        require(protocolFee <= 10000);
+        defaultProtocolFee = protocolFee;
+    }
+
+    function setDefaultProtocolFeeForFee(uint32 protocolFee, uint24 fee) external onlyOwner {
+        require(protocolFee <= 10000);
+        defaultProtocolFeeForFee[fee] = protocolFee;
     }
 
     function setFeeProtocol(address pool, uint32 feeProtocol0, uint32 feeProtocol1) external override onlyOwner {

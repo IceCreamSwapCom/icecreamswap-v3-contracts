@@ -40,6 +40,7 @@
     "@pancakeswap/v3-core": "*",
     "@pancakeswap/v3-lm-pool": "*",
     "@pancakeswap/v3-periphery": "*",
+    "@icecreamswap/networks": "*",
     "@types/chai": "^4.2.21",
     "@types/mocha": "^8.2.2",
     "@types/node": "^14.14.35",

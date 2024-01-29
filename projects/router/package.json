@@ -56,7 +56,8 @@
     "hardhat-tracer": "^2.1.0",
     "@uniswap/v2-core": "1.0.1",
     "@pancakeswap/v3-core": "*",
-    "@pancakeswap/v3-periphery": "*"
+    "@pancakeswap/v3-periphery": "*",
+    "@icecreamswap/networks": "*"
   },
   "dependencies": {}
 }

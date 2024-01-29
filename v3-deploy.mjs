@@ -1,19 +1,8 @@
 #!/usr/bin/env zx
 // import 'zx/globals'
-
-const networks = {
-  eth: 'eth',
-  goerli: 'goerli',
-  bscMainnet: 'bscMainnet',
-  bscTestnet: 'bscTestnet',
-  hardhat: 'hardhat',
-}
+require('dotenv').config({ path: require('find-config')('.env') })
 
 let network = process.env.NETWORK
-console.log(network, 'network')
-if (!network || !networks[network]) {
-  throw new Error(`env NETWORK: ${network}`)
-}
 
 await $`yarn workspace @pancakeswap/v3-core run hardhat run scripts/deploy.ts --network ${network}`
 

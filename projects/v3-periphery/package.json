@@ -36,6 +36,7 @@
     "@nomiclabs/hardhat-waffle": "^2.0.1",
     "@openzeppelin/hardhat-upgrades": "^1.22.1",
     "@pancakeswap/v3-core": "*",
+    "@icecreamswap/networks": "*",
     "@typechain/ethers-v5": "^10.2.0",
     "@types/chai": "^4.2.6",
     "@types/mocha": "^5.2.7",
