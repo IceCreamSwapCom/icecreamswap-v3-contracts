@@ -27,20 +27,8 @@ abstract contract V3SwapRouter is IV3SwapRouter, PeripheryPaymentsWithFeeExtende
     /// @dev Transient storage variable used for returning the computed amount in for an exact output swap.
     uint256 private amountInCached = DEFAULT_AMOUNT_IN_CACHED;
 
-    /// @dev Transient storage variable used for caching initial msg.sender to be used inside pancakeV3SwapCallback
-    address private msgSenderCached = address(0);
-
     struct SwapCallbackData {
         bytes path;
-        address payer;
-    }
-
-    /// caches the msg.sender so it can be used inside pancakeV3SwapCallback
-    modifier cachedMsgSender() {
-        require(msgSenderCached == address(0), "msgSenderCached!=0");
-        msgSenderCached = msg.sender;
-        _;
-        msgSenderCached = address(0);
     }
 
     /// catches all V3 callbacks like uniswapV3SwapCallback and forwards their decoded parameter to pancakeV3SwapCallback
@@ -67,8 +55,7 @@ abstract contract V3SwapRouter is IV3SwapRouter, PeripheryPaymentsWithFeeExtende
         require(amount0Delta > 0 || amount1Delta > 0); // swaps entirely within 0-liquidity regions are not supported
         SwapCallbackData memory data = abi.decode(_data, (SwapCallbackData));
         (address pool, address tokenIn, address tokenOut) = data.path.decodeFirstPool();
-        require(msg.sender == pool);
-        require(data.payer == msgSenderCached || data.payer == address(this), "invalid payer");
+        require(msg.sender == pool, "!pool");
 
         (bool isExactInput, uint256 amountToPay) =
             amount0Delta > 0
@@ -76,7 +63,7 @@ abstract contract V3SwapRouter is IV3SwapRouter, PeripheryPaymentsWithFeeExtende
                 : (tokenOut < tokenIn, uint256(amount1Delta));
 
         if (isExactInput) {
-            pay(tokenIn, data.payer, msg.sender, amountToPay);
+            pay(tokenIn, address(this), msg.sender, amountToPay);
         } else {
             // either initiate the next swap or pay
             if (data.path.hasMultiplePools()) {
@@ -85,7 +72,7 @@ abstract contract V3SwapRouter is IV3SwapRouter, PeripheryPaymentsWithFeeExtende
             } else {
                 amountInCached = amountToPay;
                 // note that because exact output swaps are executed in reverse order, tokenOut is actually tokenIn
-                pay(tokenOut, data.payer, msg.sender, amountToPay);
+                pay(tokenOut, address(this), msg.sender, amountToPay);
             }
         }
     }
@@ -125,14 +112,13 @@ abstract contract V3SwapRouter is IV3SwapRouter, PeripheryPaymentsWithFeeExtende
         payable
         override
         nonReentrant
-        cachedMsgSender
         returns (uint256 amountOut)
     {
         // use amountIn == Constants.CONTRACT_BALANCE as a flag to swap the entire balance of the contract
-        bool hasAlreadyPaid;
         if (params.amountIn == Constants.CONTRACT_BALANCE) {
-            hasAlreadyPaid = true;
             params.amountIn = IERC20(params.tokenIn).balanceOf(address(this));
+        } else {
+            pay(params.tokenIn, msg.sender, address(this), params.amountIn);
         }
 
         amountOut = exactInputInternal(
@@ -140,24 +126,21 @@ abstract contract V3SwapRouter is IV3SwapRouter, PeripheryPaymentsWithFeeExtende
             params.recipient,
             params.sqrtPriceLimitX96,
             SwapCallbackData({
-                path: abi.encodePacked(params.tokenIn, params.pool, params.tokenOut),
-                payer: hasAlreadyPaid ? address(this) : msg.sender
+                path: abi.encodePacked(params.tokenIn, params.pool, params.tokenOut)
             })
         );
         require(amountOut >= params.amountOutMinimum);
     }
 
     /// @inheritdoc IV3SwapRouter
-    function exactInput(ExactInputParams memory params) external payable nonReentrant cachedMsgSender override returns (uint256 amountOut) {
+    function exactInput(ExactInputParams memory params) external payable nonReentrant override returns (uint256 amountOut) {
+        (, address tokenIn, ) = params.path.decodeFirstPool();
         // use amountIn == Constants.CONTRACT_BALANCE as a flag to swap the entire balance of the contract
-        bool hasAlreadyPaid;
         if (params.amountIn == Constants.CONTRACT_BALANCE) {
-            hasAlreadyPaid = true;
-            (, address tokenIn, ) = params.path.decodeFirstPool();
             params.amountIn = IERC20(tokenIn).balanceOf(address(this));
+        } else {
+            pay(tokenIn, msg.sender, address(this), params.amountIn);
         }
-
-        address payer = hasAlreadyPaid ? address(this) : msg.sender;
 
         while (true) {
             bool hasMultiplePools = params.path.hasMultiplePools();
@@ -168,14 +151,12 @@ abstract contract V3SwapRouter is IV3SwapRouter, PeripheryPaymentsWithFeeExtende
                 hasMultiplePools ? address(this) : params.recipient, // for intermediate swaps, this contract custodies
                 0,
                 SwapCallbackData({
-                    path: params.path.getFirstPool(), // only the first pool in the path is necessary
-                    payer: payer
+                    path: params.path.getFirstPool() // only the first pool in the path is necessary
                 })
             );
 
             // decide whether to continue or terminate
             if (hasMultiplePools) {
-                payer = address(this);
                 params.path = params.path.skipToken();
             } else {
                 amountOut = params.amountIn;
@@ -227,33 +208,45 @@ abstract contract V3SwapRouter is IV3SwapRouter, PeripheryPaymentsWithFeeExtende
         payable
         override
         nonReentrant
-        cachedMsgSender
         returns (uint256 amountIn)
     {
+        // transfer amountInMaximum from sender to this contract
+        pay(params.tokenIn, msg.sender, address(this), params.amountInMaximum);
+
         // avoid an SLOAD by using the swap return data
         amountIn = exactOutputInternal(
             params.amountOut,
             params.recipient,
             params.sqrtPriceLimitX96,
-            SwapCallbackData({path: abi.encodePacked(params.tokenOut, params.pool, params.tokenIn), payer: msg.sender})
+            SwapCallbackData({path: abi.encodePacked(params.tokenOut, params.pool, params.tokenIn)})
         );
 
-        require(amountIn <= params.amountInMaximum);
+        // refund unused input amount to sender
+        pay(params.tokenIn, address(this), msg.sender, params.amountInMaximum - amountIn);
+
         // has to be reset even though we don't use it in the single hop case
         amountInCached = DEFAULT_AMOUNT_IN_CACHED;
     }
 
     /// @inheritdoc IV3SwapRouter
-    function exactOutput(ExactOutputParams calldata params) external payable override nonReentrant cachedMsgSender returns (uint256 amountIn) {
+    function exactOutput(ExactOutputParams calldata params) external payable override nonReentrant returns (uint256 amountIn) {
+        (, address tokenIn, ) = params.path.decodeFirstPool();
+
+        // transfer amountInMaximum from sender to this contract
+        pay(tokenIn, msg.sender, address(this), params.amountInMaximum);
+
         exactOutputInternal(
             params.amountOut,
             params.recipient,
             0,
-            SwapCallbackData({path: params.path, payer: msg.sender})
+            SwapCallbackData({path: params.path})
         );
 
         amountIn = amountInCached;
-        require(amountIn <= params.amountInMaximum);
+
+        // refund unused input amount to sender
+        pay(tokenIn, address(this), msg.sender, params.amountInMaximum - amountIn);
+
         amountInCached = DEFAULT_AMOUNT_IN_CACHED;
     }
 }
