@@ -58,6 +58,13 @@ library PathForeign {
         return path.slice(0, POP_OFFSET);
     }
 
+    /// @notice Gets the last token out from the path, which is the token to be payed for exact output swaps
+    /// @param path The bytes encoded swap path
+    /// @return The last token out
+    function getLastToken(bytes memory path) internal pure returns (address) {
+        return path.toAddress(path.length - ADDR_SIZE);
+    }
+
     /// @notice Skips a token + fee element from the buffer and returns the remainder
     /// @param path The swap path
     /// @return The remaining token + fee elements in the path

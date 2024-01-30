@@ -230,7 +230,7 @@ abstract contract V3SwapRouter is IV3SwapRouter, PeripheryPaymentsWithFeeExtende
 
     /// @inheritdoc IV3SwapRouter
     function exactOutput(ExactOutputParams calldata params) external payable override nonReentrant returns (uint256 amountIn) {
-        (, address tokenIn, ) = params.path.decodeFirstPool();
+        address tokenIn = params.path.getLastToken();
 
         // transfer amountInMaximum from sender to this contract
         pay(tokenIn, msg.sender, address(this), params.amountInMaximum);
