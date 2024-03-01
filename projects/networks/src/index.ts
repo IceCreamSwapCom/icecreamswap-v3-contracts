@@ -78,6 +78,18 @@ const neon: NetworkUserConfig = {
   accounts: [process.env.PRIVATE_KEY!],
 }
 
+const shardeum_testnet: NetworkUserConfig = {
+  url: 'https://sphinx.shardeum.org',
+  chainId: 8082,
+  accounts: [process.env.PRIVATE_KEY!],
+}
+
+const blast: NetworkUserConfig = {
+  url: 'https://blast.blockpi.network/v1/rpc/public',
+  chainId: 81457,
+  accounts: [process.env.PRIVATE_KEY!],
+}
+
 export const networks = {
   hardhat: {
     allowUnlimitedContractSize: true,
@@ -94,4 +106,6 @@ export const networks = {
   ...{ xodex },
   ...{ doken },
   ...{ neon },
+  ...{ shardeum_testnet },
+  ...{ blast },
 }
